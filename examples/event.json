@@ -1,0 +1,9 @@
+{
+  "eventId": "evt-7f3a",
+  "type": "delivery.checked_in",
+  "occurredAt": "2026-10-29T14:12:00+00:00",
+  "sequence": 42,
+  "homeId": "home-77",
+  "pharmacyDeliveryId": "DEL-104233",
+  "data": { "linesReceived": 118, "linesFlagged": 2 }
+}

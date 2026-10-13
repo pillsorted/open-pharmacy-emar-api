@@ -1,0 +1,18 @@
+{
+  "pharmacyItemRef": "RX-31877",
+  "vmpCode": "00000000000000000",
+  "name": "Paracetamol 500mg tablets",
+  "form": "tablet",
+  "strength": "500mg",
+  "route": "oral",
+  "status": "ACTIVE",
+  "startDate": "2026-11-02",
+  "supplyFormat": "ORIGINAL_PACK",
+  "flags": [],
+  "labelText": "Take ONE tablet each morning. Take ONE extra tablet when required for headache. Max 4 in 24 hours.",
+  "schedules": [
+    { "scheduleId": "sch-1", "dosageType": "REGULAR", "times": ["08:00"], "doseQuantity": 1, "doseUnit": "tablet" },
+    { "scheduleId": "sch-2", "dosageType": "PRN", "doseQuantity": 1, "doseUnit": "tablet",
+      "indication": "headache", "minIntervalHours": 4, "maxPer24h": 4, "maxPer24hAcrossItem": true }
+  ]
+}

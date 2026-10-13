@@ -1,0 +1,633 @@
+openapi: 3.1.0
+info:
+  title: Open Pharmacy–eMAR API
+  version: 0.1.0-draft
+  summary: An open API for pharmacies to send medicines to care-home eMAR systems and get check-in results back.
+  description: |
+    The eMAR system hosts this API; the pharmacy calls it and receives webhooks.
+
+    Phase 1 (check-in) is the core: the pharmacy sends each delivery, care staff check it in
+    line by line, and the eMAR applies new, changed and discontinued medicines and books stock
+    in through a ledger. Phase 2 (ordering) is marked `x-phase: 2`.
+
+    Codes: medicines use NHS dm+d (VMP, AMP, AMPP); units use the dm+d unit of measure.
+    Times: ISO 8601 with offset; administration times are local `HH:mm` for the home's time zone.
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+servers:
+  - url: '{baseUrl}/v1'
+    description: Each eMAR publishes its own base URL.
+    variables:
+      baseUrl:
+        default: https://api.your-emar.co.uk
+security:
+  - oauth2: []
+tags:
+  - name: Homes
+    description: Care homes that have granted the pharmacy access.
+  - name: Residents
+    description: Finding and linking residents.
+  - name: Medication items
+    description: Medicines, dose schedules and stock per resident.
+  - name: Deliveries
+    description: Deliveries and their check-in results.
+  - name: Reorders
+    description: Phase 2.
+
+paths:
+  /homes:
+    get:
+      tags: [Homes]
+      summary: Homes that have granted this pharmacy access
+      description: |
+        A home appears here once it has turned this pharmacy on in the eMAR. It disappears when
+        access is turned off; every call for that home is then refused with 403.
+      operationId: listHomes
+      responses:
+        '200':
+          description: Homes
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [homes]
+                properties:
+                  homes:
+                    type: array
+                    items: { $ref: '#/components/schemas/Home' }
+
+  /homes/{homeId}/residents:
+    parameters:
+      - $ref: '#/components/parameters/homeId'
+    get:
+      tags: [Residents]
+      summary: Find residents to link
+      operationId: findResidents
+      parameters:
+        - { name: nhsNumber, in: query, schema: { $ref: '#/components/schemas/NhsNumber' } }
+        - { name: surname, in: query, schema: { type: string } }
+        - { name: dateOfBirth, in: query, schema: { type: string, format: date } }
+      responses:
+        '200':
+          description: Matching residents in this home
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [residents]
+                properties:
+                  residents:
+                    type: array
+                    items: { $ref: '#/components/schemas/Resident' }
+
+  /residents/{residentId}/links:
+    parameters:
+      - $ref: '#/components/parameters/residentId'
+    post:
+      tags: [Residents]
+      summary: Link the pharmacy's patient ID to a resident
+      description: |
+        After the first link, both sides use the ID pair for every call. The link survives the
+        resident moving to another home on the same eMAR.
+      operationId: linkResident
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ResidentLinkRequest' }
+      responses:
+        '201':
+          description: Linked
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Resident' }
+        '409':
+          $ref: '#/components/responses/Problem'
+
+  /residents/{residentId}/medication-items:
+    parameters:
+      - $ref: '#/components/parameters/residentId'
+    get:
+      tags: [Medication items]
+      summary: Current medication items, schedules, status and stock
+      operationId: listMedicationItems
+      responses:
+        '200':
+          description: Items
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/MedicationItem' }
+
+  /residents/{residentId}/medication-items/{pharmacyItemRef}:
+    parameters:
+      - $ref: '#/components/parameters/residentId'
+      - $ref: '#/components/parameters/pharmacyItemRef'
+    put:
+      tags: [Medication items]
+      summary: Create or replace one item and its schedules
+      description: Idempotent on `pharmacyItemRef`. Use `If-Match` to avoid overwriting a care-home override.
+      operationId: putMedicationItem
+      parameters:
+        - $ref: '#/components/parameters/ifMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/MedicationItem' }
+      responses:
+        '200':
+          description: Replaced
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MedicationItem' }
+        '201':
+          description: Created
+          headers: { ETag: { schema: { type: string } } }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MedicationItem' }
+        '412':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
+
+  /residents/{residentId}/medication-items/{pharmacyItemRef}/discontinue:
+    parameters:
+      - $ref: '#/components/parameters/residentId'
+      - $ref: '#/components/parameters/pharmacyItemRef'
+    post:
+      tags: [Medication items]
+      summary: Stop an item from a date
+      operationId: discontinueMedicationItem
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [effectiveFrom, reason]
+              properties:
+                effectiveFrom: { type: string, format: date-time }
+                reason: { type: string }
+                stoppedBy: { type: string, description: Prescriber or clinician who stopped it. }
+      responses:
+        '200':
+          description: Discontinued
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MedicationItem' }
+
+  /residents/{residentId}/medication-items/{pharmacyItemRef}/stock:
+    parameters:
+      - $ref: '#/components/parameters/residentId'
+      - $ref: '#/components/parameters/pharmacyItemRef'
+    get:
+      tags: [Medication items]
+      summary: Stock balance and recent ledger entries (read-only)
+      operationId: getStock
+      responses:
+        '200':
+          description: Stock
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Stock' }
+
+  /homes/{homeId}/deliveries/{pharmacyDeliveryId}:
+    parameters:
+      - $ref: '#/components/parameters/homeId'
+      - $ref: '#/components/parameters/pharmacyDeliveryId'
+    put:
+      tags: [Deliveries]
+      summary: Create or replace a delivery before check-in
+      description: |
+        Send when packed. A resend replaces the earlier version until check-in starts.
+        Lines for residents with no link are held in an unmatched queue, not applied.
+      operationId: putDelivery
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Delivery' }
+      responses:
+        '200': { description: Replaced }
+        '201': { description: Created }
+        '409':
+          $ref: '#/components/responses/Problem'
+        '422':
+          $ref: '#/components/responses/Problem'
+    patch:
+      tags: [Deliveries]
+      summary: Update delivery status and tracking
+      operationId: patchDeliveryStatus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [DISPATCHED, OUT_FOR_DELIVERY, DELIVERED] }
+                trackingUrl: { type: string, format: uri }
+                at: { type: string, format: date-time }
+      responses:
+        '200': { description: Updated }
+    get:
+      tags: [Deliveries]
+      summary: A delivery with its check-in result per line
+      operationId: getDelivery
+      responses:
+        '200':
+          description: Delivery
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Delivery' }
+
+  /reorders/{requestId}:
+    x-phase: 2
+    parameters:
+      - { name: requestId, in: path, required: true, schema: { type: string } }
+    patch:
+      tags: [Reorders]
+      summary: Pharmacy reports progress on a reorder request
+      operationId: patchReorder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [items]
+              properties:
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [itemRef, status]
+                    properties:
+                      itemRef: { type: string }
+                      status:
+                        type: string
+                        enum: [SENT_TO_PRESCRIBER, PRESCRIPTION_RECEIVED, QUERIED_WITH_PRESCRIBER, REJECTED_BY_PRESCRIBER, DISPENSED]
+                      reason: { type: string }
+                      pharmacyDeliveryId: { type: string }
+      responses:
+        '200': { description: Updated }
+
+webhooks:
+  delivery.checked_in:
+    post:
+      operationId: onDeliveryCheckedIn
+      summary: A delivery has been confirmed by care staff
+      requestBody: { $ref: '#/components/requestBodies/Event' }
+      responses: { '2XX': { description: Received } }
+  delivery.line_flagged:
+    post:
+      operationId: onDeliveryLineFlagged
+      summary: A line was marked SHORT, DAMAGED or NOT_RECEIVED before full confirmation
+      requestBody: { $ref: '#/components/requestBodies/Event' }
+      responses: { '2XX': { description: Received } }
+  medication_item.overridden:
+    post:
+      operationId: onMedicationItemOverridden
+      summary: Staff changed times, start date or dose at check-in
+      requestBody: { $ref: '#/components/requestBodies/Event' }
+      responses: { '2XX': { description: Received } }
+  medication_item.added_by_home:
+    post:
+      operationId: onMedicationItemAddedByHome
+      summary: Staff added a medicine the pharmacy did not send
+      requestBody: { $ref: '#/components/requestBodies/Event' }
+      responses: { '2XX': { description: Received } }
+  medication_item.discontinued_by_home:
+    post:
+      operationId: onMedicationItemDiscontinuedByHome
+      summary: Staff stopped a medicine
+      requestBody: { $ref: '#/components/requestBodies/Event' }
+      responses: { '2XX': { description: Received } }
+  stock.low:
+    post:
+      operationId: onStockLow
+      summary: Balance fell below the home's threshold of days of regular use
+      requestBody: { $ref: '#/components/requestBodies/Event' }
+      responses: { '2XX': { description: Received } }
+  resident.moved:
+    post:
+      operationId: onResidentMoved
+      summary: Resident moved to another home on this eMAR
+      requestBody: { $ref: '#/components/requestBodies/Event' }
+      responses: { '2XX': { description: Received } }
+  resident.left:
+    post:
+      operationId: onResidentLeft
+      summary: Resident discharged, died, or moved to another pharmacy
+      requestBody: { $ref: '#/components/requestBodies/Event' }
+      responses: { '2XX': { description: Received } }
+  resident.nhs_number_changed:
+    post:
+      operationId: onResidentNhsNumberChanged
+      summary: Resident's NHS number changed (old and new in data)
+      requestBody: { $ref: '#/components/requestBodies/Event' }
+      responses: { '2XX': { description: Received } }
+  reorder.requested:
+    x-phase: 2
+    post:
+      operationId: onReorderRequested
+      summary: The home asks the pharmacy to request prescriptions
+      requestBody: { $ref: '#/components/requestBodies/Event' }
+      responses: { '2XX': { description: Received } }
+
+components:
+  securitySchemes:
+    oauth2:
+      type: oauth2
+      description: Client credentials, one client per pharmacy, scoped to homes that granted access.
+      flows:
+        clientCredentials:
+          tokenUrl: https://emar.example.com/oauth/token
+          scopes: {}
+
+  parameters:
+    homeId: { name: homeId, in: path, required: true, schema: { type: string } }
+    residentId: { name: residentId, in: path, required: true, schema: { type: string } }
+    pharmacyItemRef:
+      name: pharmacyItemRef
+      in: path
+      required: true
+      description: The pharmacy's own stable reference for this item.
+      schema: { type: string }
+    pharmacyDeliveryId: { name: pharmacyDeliveryId, in: path, required: true, schema: { type: string } }
+    ifMatch: { name: If-Match, in: header, schema: { type: string } }
+
+  requestBodies:
+    Event:
+      required: true
+      description: Signed with HMAC-SHA256 over the raw body in the `Signature` header. At-least-once; drop repeats by `eventId`.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Event' }
+
+  responses:
+    Problem:
+      description: Error (RFC 9457 problem details)
+      content:
+        application/problem+json:
+          schema: { $ref: '#/components/schemas/Problem' }
+
+  schemas:
+    NhsNumber:
+      type: string
+      pattern: '^[0-9]{10}$'
+      description: 10 digits, valid mod-11 check digit.
+
+    Home:
+      type: object
+      required: [homeId, name]
+      properties:
+        homeId: { type: string }
+        name: { type: string }
+        cqcLocationId: { type: string, description: Care Quality Commission location ID; used to match the home automatically. }
+        postcode: { type: string }
+        timeZone: { type: string, default: Europe/London }
+        units:
+          type: array
+          items:
+            type: object
+            properties:
+              unitId: { type: string }
+              name: { type: string }
+
+    Resident:
+      type: object
+      required: [residentId, homeId]
+      properties:
+        residentId: { type: string, description: Stays the same when the resident moves between homes on this eMAR. }
+        homeId: { type: string }
+        unitId: { type: string }
+        nhsNumber: { $ref: '#/components/schemas/NhsNumber' }
+        previousNhsNumbers:
+          type: array
+          items: { $ref: '#/components/schemas/NhsNumber' }
+        givenName: { type: string }
+        familyName: { type: string }
+        dateOfBirth: { type: string, format: date }
+        status: { type: string, enum: [ACTIVE, ON_LEAVE, IN_HOSPITAL, LEFT] }
+        pharmacyLinks:
+          type: array
+          items:
+            type: object
+            properties:
+              pharmacyPatientId: { type: string }
+              linkedAt: { type: string, format: date-time }
+              state: { type: string, enum: [PENDING, CONFIRMED] }
+
+    ResidentLinkRequest:
+      type: object
+      required: [pharmacyPatientId, matchedOn]
+      properties:
+        pharmacyPatientId: { type: string }
+        matchedOn:
+          type: string
+          enum: [NHS_NUMBER, NAME_AND_DOB]
+          description: A NAME_AND_DOB match creates a PENDING link that care staff confirm; it is never applied automatically.
+
+    MedicationItem:
+      type: object
+      description: |
+        One medicine for one resident. Owns ONE stock balance. Regular and as-required (PRN)
+        doses of the same medicine are schedules on the same item, never separate items.
+      required: [pharmacyItemRef, vmpCode, name, status, schedules]
+      properties:
+        itemId: { type: string, readOnly: true }
+        pharmacyItemRef: { type: string }
+        vmpCode: { type: string, description: dm+d VMP code. }
+        ampCode: { type: string, description: dm+d AMP code when a brand matters. }
+        name: { type: string }
+        form: { type: string }
+        strength: { type: string }
+        route: { type: string }
+        status: { type: string, enum: [ACTIVE, SUSPENDED, DISCONTINUED] }
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        supplyFormat: { type: string, enum: [ORIGINAL_PACK, MULTI_DOSE_POUCH, BLISTER] }
+        flags:
+          type: array
+          items:
+            type: string
+            enum: [TIME_CRITICAL, CONTROLLED_DRUG, FRIDGE, HIGH_RISK, COVERT, CRUSH_ALLOWED, DO_NOT_CRUSH]
+        controlledDrugSchedule: { type: integer, minimum: 2, maximum: 5 }
+        labelText: { type: string, description: 'Dispensing label wording, word for word. Shown beside the structured schedule.' }
+        imageUrl: { type: string, format: uri, description: Photo of the supplied tablet or pack. }
+        prescriber:
+          type: object
+          properties:
+            name: { type: string }
+            professionalId: { type: string }
+        schedules:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/DoseSchedule' }
+        stock:
+          readOnly: true
+          allOf: [{ $ref: '#/components/schemas/StockBalance' }]
+
+    DoseSchedule:
+      type: object
+      required: [scheduleId, dosageType]
+      description: Required fields depend on dosageType; see docs/data-model.md.
+      properties:
+        scheduleId: { type: string }
+        dosageType: { type: string, enum: [REGULAR, PRN, VARIABLE, REDUCING, INTERVAL, ONCE, APPLY] }
+        times:
+          type: array
+          items: { type: string, pattern: '^([01][0-9]|2[0-3]):[0-5][0-9]$' }
+        doseQuantity: { type: number }
+        doseMin: { type: number }
+        doseMax: { type: number }
+        doseUnit: { type: string, description: 'dm+d unit of measure, e.g. tablet, capsule, ml, patch, dose, application.' }
+        indication: { type: string, description: PRN reason. }
+        minIntervalHours: { type: number }
+        maxPer24h: { type: number }
+        maxPer24hAcrossItem: { type: boolean, description: True when the 24-hour maximum includes doses from every schedule on the item. }
+        everyNDays: { type: integer }
+        weekdays:
+          type: array
+          items: { type: string, enum: [MON, TUE, WED, THU, FRI, SAT, SUN] }
+        steps:
+          type: array
+          description: REDUCING only.
+          items:
+            type: object
+            properties:
+              from: { type: string, format: date }
+              to: { type: string, format: date }
+              times: { type: array, items: { type: string } }
+              doseQuantity: { type: number }
+        dueAt: { type: string, format: date-time, description: ONCE only. }
+        site: { type: string }
+        directions: { type: string }
+        validFrom: { type: string, format: date }
+        validTo: { type: string, format: date }
+
+    Delivery:
+      type: object
+      required: [pharmacyDeliveryId, lines]
+      properties:
+        pharmacyDeliveryId: { type: string }
+        cycleStart: { type: string, format: date }
+        expectedAt: { type: string, format: date-time }
+        status: { type: string, enum: [PACKED, DISPATCHED, OUT_FOR_DELIVERY, DELIVERED, CHECKED_IN], readOnly: true }
+        trackingUrl: { type: string, format: uri }
+        lines:
+          type: array
+          items: { $ref: '#/components/schemas/DeliveryLine' }
+
+    DeliveryLine:
+      type: object
+      required: [deliveryLineId, pharmacyPatientId, pharmacyItemRef, change, quantity, unit]
+      properties:
+        deliveryLineId: { type: string }
+        residentId: { type: string }
+        pharmacyPatientId: { type: string }
+        pharmacyItemRef: { type: string }
+        change:
+          type: string
+          enum: [NEW, DOSE_CHANGED, UNCHANGED]
+          description: For NEW and DOSE_CHANGED, `item` is required.
+        item: { $ref: '#/components/schemas/MedicationItem' }
+        amppCode: { type: string, description: dm+d AMPP code of the pack supplied. }
+        quantity: { type: number }
+        unit: { type: string }
+        batch: { type: string }
+        expiry: { type: string, format: date }
+        pouchTimeSlot: { type: string, description: 'For MULTI_DOSE_POUCH, the time slot the pouch belongs to.' }
+        prescriptionId: { type: string }
+        checkIn:
+          readOnly: true
+          type: object
+          properties:
+            result: { type: string, enum: [RECEIVED, SHORT, DAMAGED, NOT_RECEIVED] }
+            quantityReceived: { type: number }
+            overrides:
+              type: array
+              items:
+                type: object
+                properties:
+                  field: { type: string }
+                  from: {}
+                  to: {}
+            by: { type: string }
+            at: { type: string, format: date-time }
+
+    LedgerEntry:
+      type: object
+      required: [entryId, direction, quantity, unit, reason, occurredAt]
+      description: Append-only. Fix a mistake with a reversing entry.
+      properties:
+        entryId: { type: string }
+        direction: { type: string, enum: [IN, OUT] }
+        quantity: { type: number }
+        unit: { type: string }
+        reason:
+          type: string
+          enum: [RECEIVED, CARRIED_FORWARD, BROUGHT_IN, ADMINISTERED, REFUSED_DESTROYED, RETURNED_TO_PHARMACY, EXPIRED, SENT_WITH_RESIDENT, COUNT_ADJUSTMENT]
+        occurredAt: { type: string, format: date-time }
+        recordedBy: { type: string }
+        sourceRef: { type: string }
+        batch: { type: string }
+        expiry: { type: string, format: date }
+        note: { type: string }
+
+    StockBalance:
+      type: object
+      properties:
+        balance: { type: number }
+        unit: { type: string }
+
+    Stock:
+      allOf:
+        - $ref: '#/components/schemas/StockBalance'
+        - type: object
+          properties:
+            entries:
+              type: array
+              items: { $ref: '#/components/schemas/LedgerEntry' }
+
+    Event:
+      type: object
+      required: [eventId, type, occurredAt, homeId]
+      properties:
+        eventId: { type: string }
+        type: { type: string }
+        occurredAt: { type: string, format: date-time }
+        sequence: { type: integer, description: 'Increases per resident, so events can be applied in order.' }
+        homeId: { type: string }
+        residentId: { type: string }
+        pharmacyDeliveryId: { type: string }
+        pharmacyItemRef: { type: string }
+        data: { type: object, description: Small event-specific payload; fetch the full record with GET. }
+
+    Problem:
+      type: object
+      properties:
+        type: { type: string, format: uri }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        code: { type: string, examples: [RESIDENT_NOT_LINKED, UNKNOWN_DMD_CODE, INVALID_DOSE_QUANTITY] }
+        errors:
+          type: array
+          items:
+            type: object
+            properties:
+              path: { type: string }
+              code: { type: string }
+              detail: { type: string }

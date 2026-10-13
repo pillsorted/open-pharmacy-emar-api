@@ -1,0 +1,21 @@
+{
+  "pharmacyDeliveryId": "DEL-104233",
+  "cycleStart": "2026-11-02",
+  "expectedAt": "2026-10-29T10:00:00+00:00",
+  "trackingUrl": "https://tracking.example.com/abc123",
+  "lines": [
+    {
+      "deliveryLineId": "LINE-889100",
+      "residentId": "res-4410",
+      "pharmacyPatientId": "PAT-55120",
+      "pharmacyItemRef": "RX-31877",
+      "change": "UNCHANGED",
+      "amppCode": "00000000000000000",
+      "quantity": 56,
+      "unit": "tablet",
+      "batch": "K4471",
+      "expiry": "2028-03-31",
+      "prescriptionId": "EXAMPLE-PRESCRIPTION-ID"
+    }
+  ]
+}
