@@ -2,7 +2,13 @@
 
 ## Matching residents
 
-Match once, then use the linked ID pair forever. NHS numbers can change, so both sides keep a history.
+The NHS number is a way to find a resident the first time, never the link itself: it can change
+through an official process. After the first match, both sides store each other's own IDs
+(`residentId` ↔ `pharmacyPatientId`) and every call uses those. Both sides keep the history of NHS
+numbers, so a match on an old number still finds the resident.
+
+When an NHS number changes, the eMAR sends `resident.nhs_number_changed` with the old and new
+numbers. The link is not affected.
 
 | Order | Key | When | Rule |
 | --- | --- | --- | --- |

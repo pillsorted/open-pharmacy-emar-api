@@ -25,7 +25,8 @@ spec is our opinionated answer, published so any eMAR or pharmacy can implement 
    [docs/data-model.md](docs/data-model.md).
 2. **Stock is a ledger, not a number.** Every movement in or out has a reason; the balance is in minus
    out. A stock count is just one more entry.
-3. **Match once, then use linked IDs.** Match on NHS number, swap permanent IDs, never rely on names.
+3. **The NHS number finds a resident; it is never the link.** NHS numbers can change. After the first
+   match, both sides store each other's own IDs and use only those.
    See [docs/matching-and-onboarding.md](docs/matching-and-onboarding.md).
 4. **Structured doses, with the label text alongside.** Regular, PRN (with interval and 24-hour
    maximum), variable, reducing, interval, one-off and topical doses all have fields.
