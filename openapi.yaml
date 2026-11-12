@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Open Pharmacy–eMAR API
-  version: 0.1.0-draft
+  version: 0.2.0-draft
   summary: An open API for pharmacies to send medicines to care-home eMAR systems and get check-in results back.
   description: |
     The eMAR system hosts this API; the pharmacy calls it and receives webhooks.
@@ -210,6 +210,8 @@ paths:
       description: |
         Send when packed. A resend replaces the earlier version until check-in starts.
         Lines for residents with no link are held in an unmatched queue, not applied.
+        Every line carries the full medication item as the pharmacy dispensed it. The eMAR compares
+        it with its own copy and shows any difference to care staff before check-in is confirmed.
       operationId: putDelivery
       requestBody:
         required: true
@@ -532,7 +534,7 @@ components:
 
     DeliveryLine:
       type: object
-      required: [deliveryLineId, pharmacyPatientId, pharmacyItemRef, change, quantity, unit]
+      required: [deliveryLineId, pharmacyPatientId, pharmacyItemRef, change, item, quantity, unit]
       properties:
         deliveryLineId: { type: string }
         residentId: { type: string }
@@ -541,11 +543,18 @@ components:
         change:
           type: string
           enum: [NEW, DOSE_CHANGED, UNCHANGED]
-          description: For NEW and DOSE_CHANGED, `item` is required.
-        item: { $ref: '#/components/schemas/MedicationItem' }
+          description: |
+            The pharmacy's view of what changed since the last supply. A display hint only: the eMAR
+            does not rely on it and compares `item` with its own copy on every line.
+        item:
+          description: |
+            The full medication item as dispensed for this supply, sent on every line whatever the
+            value of `change`. It is the pharmacy's view for comparison, not an instruction to
+            overwrite: overrides made by the home stay in place and any difference is shown to staff.
+          allOf: [{ $ref: '#/components/schemas/MedicationItem' }]
         amppCode: { type: string, description: dm+d AMPP code of the pack supplied. }
-        quantity: { type: number }
-        unit: { type: string }
+        quantity: { type: number, description: 'Quantity supplied, counted in `unit`.' }
+        unit: { type: string, description: 'dm+d unit of measure of the counted dose unit (tablet, capsule, ml, patch). Never packs: `amppCode` identifies the pack.' }
         batch: { type: string }
         expiry: { type: string, format: date }
         pouchTimeSlot: { type: string, description: 'For MULTI_DOSE_POUCH, the time slot the pouch belongs to.' }

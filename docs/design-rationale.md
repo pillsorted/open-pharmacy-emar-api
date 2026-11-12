@@ -21,6 +21,8 @@ Where each design choice comes from. Every part of this spec traces to one of fo
 | `PUT` on the pharmacy's own references | General API practice | Retries and corrections never create duplicates |
 | Webhooks with `eventId` and HMAC signature | General API practice | No polling; duplicates are safe to drop |
 | Refuse an unreadable dose | Patient safety | A wrong dose on a MAR is worse than a rejected line |
+| Full item on every delivery line; `change` is only a hint | Care-home check-in practice; patient safety | Staff check every pack's label against the MAR each cycle. The eMAR finds differences itself, so a missed change or a brand switch is never hidden by one wrong flag, and a home that missed an update is corrected next cycle |
+| Quantities in the dose unit, never packs | NHS dm+d | Stock and doses count the same unit; `amppCode` already says which pack |
 | Ordering = request for a prescription | UK prescribing law | Only a prescriber can authorise supply of a POM |
 
 Contributions should add a row here when they add a design choice.
