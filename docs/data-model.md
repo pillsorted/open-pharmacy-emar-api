@@ -30,6 +30,8 @@ Notes:
 - `doseUnit` is the dm+d unit of measure, separate from the product form.
 - `labelText` is the dispensing label word for word. The structured schedule drives the MAR; the label
   is shown beside it so staff can spot a mismatch.
+- Every delivery line carries the full item, not only new or changed ones. The eMAR compares it with
+  its own copy on every supply.
 - `maxPer24hAcrossItem: true` means the 24-hour maximum counts doses from every schedule on the item.
 - A dose quantity that cannot be read is refused with an error. It is never defaulted to 0.
 

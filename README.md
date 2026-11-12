@@ -7,7 +7,7 @@ Today every pharmacy–eMAR pair builds its own one-off integration. Data flows 
 re-key PRN and variable doses by hand, and nobody knows whether a delivery arrived complete. This
 spec is our opinionated answer, published so any eMAR or pharmacy can implement it and improve it.
 
-**Status:** 0.1 draft. Breaking changes are still possible.
+**Status:** 0.2 draft. Breaking changes are still possible.
 
 ## How it works
 

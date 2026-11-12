@@ -1,21 +1,71 @@
 {
   "pharmacyDeliveryId": "DEL-104233",
-  "cycleStart": "2026-11-02",
-  "expectedAt": "2026-10-29T10:00:00+00:00",
+  "cycleStart": "2026-11-30",
+  "expectedAt": "2026-11-26T10:00:00+00:00",
   "trackingUrl": "https://tracking.example.com/abc123",
   "lines": [
     {
       "deliveryLineId": "LINE-889100",
       "residentId": "res-4410",
       "pharmacyPatientId": "PAT-55120",
+      "pharmacyItemRef": "RX-31902",
+      "change": "UNCHANGED",
+      "item": {
+        "pharmacyItemRef": "RX-31902",
+        "vmpCode": "00000000000000000",
+        "ampCode": "00000000000000000",
+        "name": "Amlodipine 5mg tablets",
+        "form": "tablet",
+        "strength": "5mg",
+        "route": "oral",
+        "status": "ACTIVE",
+        "startDate": "2026-06-08",
+        "supplyFormat": "MULTI_DOSE_POUCH",
+        "flags": [],
+        "labelText": "Amlodipine 5mg tablets. Take ONE tablet each morning.",
+        "imageUrl": "https://images.example.com/amp/00000000000000000.jpg",
+        "schedules": [
+          { "scheduleId": "sch-1", "dosageType": "REGULAR", "times": ["08:00"], "doseQuantity": 1, "doseUnit": "tablet" }
+        ]
+      },
+      "amppCode": "00000000000000000",
+      "quantity": 28,
+      "unit": "tablet",
+      "batch": "AM2291",
+      "expiry": "2028-05-31",
+      "pouchTimeSlot": "08:00",
+      "prescriptionId": "EXAMPLE-PRESCRIPTION-ID-1"
+    },
+    {
+      "deliveryLineId": "LINE-889101",
+      "residentId": "res-4410",
+      "pharmacyPatientId": "PAT-55120",
       "pharmacyItemRef": "RX-31877",
       "change": "UNCHANGED",
+      "item": {
+        "pharmacyItemRef": "RX-31877",
+        "vmpCode": "00000000000000000",
+        "name": "Paracetamol 500mg tablets",
+        "form": "tablet",
+        "strength": "500mg",
+        "route": "oral",
+        "status": "ACTIVE",
+        "startDate": "2026-06-08",
+        "supplyFormat": "ORIGINAL_PACK",
+        "flags": [],
+        "labelText": "Paracetamol 500mg tablets. Take ONE tablet each morning. Take ONE extra tablet when required for headache. Max 4 in 24 hours.",
+        "schedules": [
+          { "scheduleId": "sch-1", "dosageType": "REGULAR", "times": ["08:00"], "doseQuantity": 1, "doseUnit": "tablet" },
+          { "scheduleId": "sch-2", "dosageType": "PRN", "doseQuantity": 1, "doseUnit": "tablet",
+            "indication": "headache", "minIntervalHours": 4, "maxPer24h": 4, "maxPer24hAcrossItem": true }
+        ]
+      },
       "amppCode": "00000000000000000",
-      "quantity": 56,
+      "quantity": 100,
       "unit": "tablet",
       "batch": "K4471",
       "expiry": "2028-03-31",
-      "prescriptionId": "EXAMPLE-PRESCRIPTION-ID"
+      "prescriptionId": "EXAMPLE-PRESCRIPTION-ID-2"
     }
   ]
 }
